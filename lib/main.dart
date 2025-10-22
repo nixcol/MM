@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'screens/camera_screen.dart';
+import 'screens/home_screen.dart';
 
 late List<CameraDescription> cameras;
 
@@ -18,10 +18,11 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Smart Fit',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 8, 84, 215)),
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color.fromARGB(255, 8, 84, 215)),
         useMaterial3: true,
       ),
-      home: const CameraScreen(),
+      home: const HomeScreen(),
     );
   }
 }
