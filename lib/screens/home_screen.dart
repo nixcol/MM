@@ -175,7 +175,7 @@ class HomeScreen extends StatelessWidget {
                       _buildExerciseCard(
                         context,
                         '💪',
-                        'Push Ups',
+                        'Shoulder Press',
                         'Upper body strength',
                         const Color(0xFF00D4FF),
                       ),

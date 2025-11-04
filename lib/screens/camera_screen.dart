@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import '../main.dart';
+import '../services/exercise_counter.dart';
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -17,7 +18,8 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   late PoseDetector poseDetector;
   late CameraController controller;
-  int exerciseCount = 0;
+
+  late ExerciseCounter _exerciseCounter;
 
   // Pose detection variables
   bool _isProcessing = false;
@@ -32,7 +34,8 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void initState() {
     super.initState();
-    // Find the back camera (preferred for exercise tracking)
+    _exerciseCounter = ExerciseCounter();
+    // Find the back camera
     final backCamera = cameras.firstWhere(
       (camera) => camera.lensDirection == CameraLensDirection.back,
       orElse: () => cameras.first,
@@ -43,6 +46,11 @@ class _CameraScreenState extends State<CameraScreen> {
       if (!mounted) return;
       setState(() {});
       _startImageStream();
+    });
+    _exerciseCounter.repNotifier.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
     });
   }
 
@@ -60,6 +68,13 @@ class _CameraScreenState extends State<CameraScreen> {
       final inputImage = _convertCameraImage(image);
       if (inputImage != null) {
         final poses = await poseDetector.processImage(inputImage);
+
+        // Only process poses if we are actively recording
+        if (_isRecording && poses.isNotEmpty) {
+          // Send the detected pose to our counter
+          _exerciseCounter.processPose(poses.first);
+        }
+
         if (mounted) {
           setState(() {
             _poses = poses;
@@ -78,8 +93,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   InputImage? _convertCameraImage(CameraImage image) {
     try {
-      // Get the sensor orientation from the *active* controller's description
-      // This was the fix: controller.description.sensorOrientation
+      // Get the sensor orientation from the active controller's description
       final sensorOrientation = controller.description.sensorOrientation;
 
       InputImageRotation rotation;
@@ -132,7 +146,6 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   Uint8List _concatenatePlanes(List<Plane> planes) {
-    // This helper function is correct as-is.
     final WriteBuffer allBytes = WriteBuffer();
     for (final Plane plane in planes) {
       allBytes.putUint8List(plane.bytes);
@@ -145,6 +158,8 @@ class _CameraScreenState extends State<CameraScreen> {
     controller.stopImageStream();
     controller.dispose();
     poseDetector.close();
+
+    _exerciseCounter.dispose();
 
     // Reset to allow all orientations when leaving the screen
     SystemChrome.setPreferredOrientations([
@@ -177,9 +192,9 @@ class _CameraScreenState extends State<CameraScreen> {
     }
 
     final Size rotatedPreviewSize = Size(
-    controller.value.previewSize!.height,
-    controller.value.previewSize!.width,
-  );
+      controller.value.previewSize!.height,
+      controller.value.previewSize!.width,
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -201,8 +216,7 @@ class _CameraScreenState extends State<CameraScreen> {
           if (_poses.isNotEmpty && _isRecording)
             Positioned.fill(
               child: CustomPaint(
-                painter:
-                    ExercisePosePainter(_poses, rotatedPreviewSize),
+                painter: ExercisePosePainter(_poses, rotatedPreviewSize),
               ),
             ),
 
@@ -290,7 +304,7 @@ class _CameraScreenState extends State<CameraScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '$exerciseCount',
+                    '${_exerciseCounter.repNotifier.value}',
                     style: const TextStyle(
                       color: Color(0xFF00D4FF),
                       fontSize: 24,
@@ -424,8 +438,7 @@ class _CameraScreenState extends State<CameraScreen> {
     setState(() {
       _isRecording = !_isRecording;
       if (!_isRecording) {
-        // Reset count when stopping
-        exerciseCount = 0;
+        _exerciseCounter.reset();
       }
     });
   }
@@ -590,7 +603,6 @@ class ExercisePosePainter extends CustomPainter {
     );
   }
 
-  
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true;
